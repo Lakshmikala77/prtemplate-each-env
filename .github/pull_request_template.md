@@ -4,6 +4,10 @@
 - Preprod: `N`
 - Prod: `N`
 
+## Skip Deployment
+- Skip Deployment: ``
+
+
 ## Image Tags for Selected Environment
 
 ### Dev Environment
