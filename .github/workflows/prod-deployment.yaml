@@ -1,0 +1,47 @@
+name: Prod Deployment
+
+on:
+  pull_request:
+    branches:
+      - prod
+    types: [opened, edited, reopened]
+
+jobs:
+  deploy-prod:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Parse and Validate PR Body
+        id: parse_pr
+        run: |
+          PR_BODY=$(jq -r '.pull_request.body' < "$GITHUB_EVENT_PATH")
+          echo "PR_BODY=$PR_BODY"
+
+          PROD_SELECTED=$(echo "$PR_BODY" | grep -oP '(?<=- Prod: `)[^`]+')
+          if [ "$PROD_SELECTED" != "Y" ]; then
+            echo "Prod Environment not selected. Exiting."
+            exit 0
+          fi
+
+          PROD_IMAGE_AP=$(echo "$PR_BODY" | grep -A 3 "Prod Environment" | grep "AP Region:" | awk -F'`' '{print $2}')
+          PROD_IMAGE_EU=$(echo "$PR_BODY" | grep -A 3 "Prod Environment" | grep "EU Region:" | awk -F'`' '{print $2}')
+          PROD_IMAGE_US=$(echo "$PR_BODY" | grep -A 3 "Prod Environment" | grep "US Region:" | awk -F'`' '{print $2}')
+
+          if [ -z "$PROD_IMAGE_AP" ] || [ -z "$PROD_IMAGE_EU" ] || [ -z "$PROD_IMAGE_US" ]; then
+            echo "Error: Missing image tag values for Prod Environment."
+            exit 1
+          fi
+
+          echo "PROD_IMAGE_AP=$PROD_IMAGE_AP" >> $GITHUB_ENV
+          echo "PROD_IMAGE_EU=$PROD_IMAGE_EU" >> $GITHUB_ENV
+          echo "PROD_IMAGE_US=$PROD_IMAGE_US" >> $GITHUB_ENV
+
+      - name: Deploy to Prod Environment
+        run: |
+          echo "Deploying to Prod Environment..."
+          echo "AP Region: $PROD_IMAGE_AP"
+          echo "EU Region: $PROD_IMAGE_EU"
+          echo "US Region: $PROD_IMAGE_US"
