@@ -1,0 +1,47 @@
+name: Staging Deployment
+
+on:
+  pull_request:
+    branches:
+      - staging
+    types: [opened, edited, reopened]
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Parse and Validate PR Body
+        id: parse_pr
+        run: |
+          PR_BODY=$(jq -r '.pull_request.body' < "$GITHUB_EVENT_PATH")
+          echo "PR_BODY=$PR_BODY"
+
+          STAGING_SELECTED=$(echo "$PR_BODY" | grep -oP '(?<=- Staging: `)[^`]+')
+          if [ "$STAGING_SELECTED" != "Y" ]; then
+            echo "Staging Environment not selected. Exiting."
+            exit 0
+          fi
+
+          STAGING_IMAGE_AP=$(echo "$PR_BODY" | grep -A 3 "Staging Environment" | grep "AP Region:" | awk -F'`' '{print $2}')
+          STAGING_IMAGE_EU=$(echo "$PR_BODY" | grep -A 3 "Staging Environment" | grep "EU Region:" | awk -F'`' '{print $2}')
+          STAGING_IMAGE_US=$(echo "$PR_BODY" | grep -A 3 "Staging Environment" | grep "US Region:" | awk -F'`' '{print $2}')
+
+          if [ -z "$STAGING_IMAGE_AP" ] || [ -z "$STAGING_IMAGE_EU" ] || [ -z "$STAGING_IMAGE_US" ]; then
+            echo "Error: Missing image tag values for Staging Environment."
+            exit 1
+          fi
+
+          echo "STAGING_IMAGE_AP=$STAGING_IMAGE_AP" >> $GITHUB_ENV
+          echo "STAGING_IMAGE_EU=$STAGING_IMAGE_EU" >> $GITHUB_ENV
+          echo "STAGING_IMAGE_US=$STAGING_IMAGE_US" >> $GITHUB_ENV
+
+      - name: Deploy to Staging Environment
+        run: |
+          echo "Deploying to Staging Environment..."
+          echo "AP Region: $STAGING_IMAGE_AP"
+          echo "EU Region: $STAGING_IMAGE_EU"
+          echo "US Region: $STAGING_IMAGE_US"
