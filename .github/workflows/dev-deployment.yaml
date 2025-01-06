@@ -1,0 +1,47 @@
+name: Dev Deployment
+
+on:
+  pull_request:
+    branches:
+      - dev
+    types: [opened, edited, reopened]
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Parse and Validate PR Body
+        id: parse_pr
+        run: |
+          PR_BODY=$(jq -r '.pull_request.body' < "$GITHUB_EVENT_PATH")
+          echo "PR_BODY=$PR_BODY"
+
+          DEV_SELECTED=$(echo "$PR_BODY" | grep -oP '(?<=- Dev: `)[^`]+')
+          if [ "$DEV_SELECTED" != "Y" ]; then
+            echo "Dev Environment not selected. Exiting."
+            exit 0
+          fi
+
+          DEV_IMAGE_AP=$(echo "$PR_BODY" | grep -A 3 "Dev Environment" | grep "AP Region:" | awk -F'`' '{print $2}')
+          DEV_IMAGE_EU=$(echo "$PR_BODY" | grep -A 3 "Dev Environment" | grep "EU Region:" | awk -F'`' '{print $2}')
+          DEV_IMAGE_US=$(echo "$PR_BODY" | grep -A 3 "Dev Environment" | grep "US Region:" | awk -F'`' '{print $2}')
+
+          if [ -z "$DEV_IMAGE_AP" ] || [ -z "$DEV_IMAGE_EU" ] || [ -z "$DEV_IMAGE_US" ]; then
+            echo "Error: Missing image tag values for Dev Environment."
+            exit 1
+          fi
+
+          echo "DEV_IMAGE_AP=$DEV_IMAGE_AP" >> $GITHUB_ENV
+          echo "DEV_IMAGE_EU=$DEV_IMAGE_EU" >> $GITHUB_ENV
+          echo "DEV_IMAGE_US=$DEV_IMAGE_US" >> $GITHUB_ENV
+
+      - name: Deploy to Dev Environment
+        run: |
+          echo "Deploying to Dev Environment..."
+          echo "AP Region: $DEV_IMAGE_AP"
+          echo "EU Region: $DEV_IMAGE_EU"
+          echo "US Region: $DEV_IMAGE_US"
