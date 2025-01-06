@@ -1,0 +1,47 @@
+name: Preprod Deployment
+
+on:
+  pull_request:
+    branches:
+      - preprod
+    types: [opened, edited, reopened]
+
+jobs:
+  deploy-preprod:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Parse and Validate PR Body
+        id: parse_pr
+        run: |
+          PR_BODY=$(jq -r '.pull_request.body' < "$GITHUB_EVENT_PATH")
+          echo "PR_BODY=$PR_BODY"
+
+          PREPROD_SELECTED=$(echo "$PR_BODY" | grep -oP '(?<=- Preprod: `)[^`]+')
+          if [ "$PREPROD_SELECTED" != "Y" ]; then
+            echo "Preprod Environment not selected. Exiting."
+            exit 0
+          fi
+
+          PREPROD_IMAGE_AP=$(echo "$PR_BODY" | grep -A 3 "Preprod Environment" | grep "AP Region:" | awk -F'`' '{print $2}')
+          PREPROD_IMAGE_EU=$(echo "$PR_BODY" | grep -A 3 "Preprod Environment" | grep "EU Region:" | awk -F'`' '{print $2}')
+          PREPROD_IMAGE_US=$(echo "$PR_BODY" | grep -A 3 "Preprod Environment" | grep "US Region:" | awk -F'`' '{print $2}')
+
+          if [ -z "$PREPROD_IMAGE_AP" ] || [ -z "$PREPROD_IMAGE_EU" ] || [ -z "$PREPROD_IMAGE_US" ]; then
+            echo "Error: Missing image tag values for Preprod Environment."
+            exit 1
+          fi
+
+          echo "PREPROD_IMAGE_AP=$PREPROD_IMAGE_AP" >> $GITHUB_ENV
+          echo "PREPROD_IMAGE_EU=$PREPROD_IMAGE_EU" >> $GITHUB_ENV
+          echo "PREPROD_IMAGE_US=$PREPROD_IMAGE_US" >> $GITHUB_ENV
+
+      - name: Deploy to Preprod Environment
+        run: |
+          echo "Deploying to Preprod Environment..."
+          echo "AP Region: $PREPROD_IMAGE_AP"
+          echo "EU Region: $PREPROD_IMAGE_EU"
+          echo "US Region: $PREPROD_IMAGE_US"
